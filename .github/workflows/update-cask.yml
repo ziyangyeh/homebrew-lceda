@@ -1,0 +1,58 @@
+name: Update cask
+
+on:
+  schedule:
+    # 02:20 Asia/Shanghai, daily
+    - cron: "20 18 * * *"
+  workflow_dispatch:
+    inputs:
+      fast:
+        description: "Read sha256 from the CDN header instead of downloading ~700 MB"
+        type: boolean
+        default: false
+      force:
+        description: "Rewrite version and checksums even if nothing changed upstream"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-cask
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check upstream and refresh the cask
+        id: update
+        run: |
+          python3 scripts/update_cask.py \
+            ${{ inputs.fast && '--trust-header' || '' }} \
+            ${{ inputs.force && '--force' || '' }}
+
+      - name: Commit and push
+        if: steps.update.outputs.updated == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/lceda-pro.rb
+          git diff --cached --quiet && exit 0
+          git commit -m "lceda-pro ${{ steps.update.outputs.version }}" \
+            -m "Automatic update from ${{ steps.update.outputs.old_version }}."
+          git push
+
+      - name: Summary
+        run: |
+          {
+            echo "| | |"
+            echo "|---|---|"
+            echo "| previous | \`${{ steps.update.outputs.old_version }}\` |"
+            echo "| upstream | \`${{ steps.update.outputs.version }}\` |"
+            echo "| committed | \`${{ steps.update.outputs.updated }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

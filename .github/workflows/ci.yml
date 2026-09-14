@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Casks/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    paths:
+      - "Casks/**"
+      - ".github/workflows/ci.yml"
+  workflow_dispatch:
+    inputs:
+      install:
+        description: "Also install and uninstall the cask (downloads ~350 MB)"
+        type: boolean
+        default: false
+
+jobs:
+  audit:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      TAP: ziyangyeh/lceda
+      HOMEBREW_NO_INSTALL_FROM_API: "1"
+      HOMEBREW_NO_ANALYTICS: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: homebrew-lceda
+
+      - name: Link the checkout in as a tap
+        run: |
+          dest="$(brew --repository)/Library/Taps/ziyangyeh/homebrew-lceda"
+          mkdir -p "$(dirname "$dest")"
+          ln -s "$GITHUB_WORKSPACE/homebrew-lceda" "$dest"
+          brew tap-info "$TAP"
+
+      - name: brew style
+        run: brew style "$TAP"
+
+      - name: brew audit
+        run: brew audit --cask --online --strict "$TAP/lceda-pro"
+
+      - name: Install smoke test
+        if: inputs.install
+        run: |
+          brew install --cask "$TAP/lceda-pro"
+          brew uninstall --cask "$TAP/lceda-pro"
