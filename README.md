@@ -19,6 +19,13 @@ brew install --cask lceda-pro
 brew install --cask ziyangyeh/lceda/lceda-pro
 ```
 
+Homebrew 现在对第三方 tap 有信任机制，装的时候会问一句要不要信任这个 cask，
+回车确认即可。想提前一次性信任整个 tap（或者在脚本/CI 里非交互安装）：
+
+```sh
+brew trust --tap ziyangyeh/lceda
+```
+
 安装包大约 350 MB，里面是一个 dmg，cask 会自动解包、挂载，再把
 `嘉立创EDA(专业版).app` 放进 `/Applications`。
 
