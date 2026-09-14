@@ -3,7 +3,9 @@
 
 The official download page is public (the *download* itself is behind a login,
 but the CDN copy on image.lceda.cn is not), so the version can simply be
-scraped from the page and the checksums computed from the CDN files.
+scraped from the page and the checksum computed from the CDN file.
+
+Only the Apple Silicon build is tracked; the cask is arm64-only.
 
 Usage:
     python3 scripts/update_cask.py                # check + update if newer
@@ -24,17 +26,14 @@ import urllib.request
 from pathlib import Path
 
 DOWNLOAD_PAGE = "https://lceda.cn/page/download"
-FILE_URL = "https://image.lceda.cn/files/lceda-pro-mac-{arch}-{version}.zip"
+FILE_URL = "https://image.lceda.cn/files/lceda-pro-mac-arm64-{version}.zip"
 CASK = Path(__file__).resolve().parent.parent / "Casks" / "lceda-pro.rb"
-
-# Homebrew `arch` symbol -> the token used in the file name.
-ARCHES = {"arm": "arm64", "intel": "x64"}
 
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " \
      "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 
 RE_VERSION = re.compile(r'^  version "([^"]+)"$', re.M)
-RE_SHA256 = re.compile(r'^  sha256 arm:\s+"[^"]*",\n\s+intel:\s+"[^"]*"$', re.M)
+RE_SHA256 = re.compile(r'^  sha256 "[^"]*"$', re.M)
 
 
 def log(msg: str) -> None:
@@ -50,21 +49,15 @@ def version_key(v: str) -> tuple[int, ...]:
     return tuple(int(p) for p in v.split("."))
 
 
-def latest_versions() -> dict[str, str]:
-    """Scrape the download page for the newest mac build of each arch."""
+def latest_version() -> str:
+    """Scrape the download page for the newest Apple Silicon build."""
     with get(DOWNLOAD_PAGE) as resp:
         html = resp.read().decode("utf-8", "replace")
 
-    found: dict[str, str] = {}
-    for key, token in ARCHES.items():
-        hits = re.findall(rf"lceda-pro-mac-{token}-(\d+(?:\.\d+)+)\.zip", html)
-        if not hits:
-            raise SystemExit(f"no lceda-pro-mac-{token} download found on {DOWNLOAD_PAGE}")
-        found[key] = max(set(hits), key=version_key)
-
-    if len(set(found.values())) != 1:
-        raise SystemExit(f"arch versions disagree: {found} - refusing to guess")
-    return found
+    hits = re.findall(r"lceda-pro-mac-arm64-(\d+(?:\.\d+)+)\.zip", html)
+    if not hits:
+        raise SystemExit(f"no lceda-pro-mac-arm64 download found on {DOWNLOAD_PAGE}")
+    return max(set(hits), key=version_key)
 
 
 def header_sha256(url: str) -> str | None:
@@ -118,7 +111,7 @@ def main() -> int:
     parser.add_argument("--check-only", action="store_true",
                         help="report the upstream version without touching the cask")
     parser.add_argument("--force", action="store_true",
-                        help="refresh version and checksums even if nothing changed")
+                        help="refresh version and checksum even if nothing changed")
     parser.add_argument("--trust-header", action="store_true",
                         help="read sha256 from the CDN response header instead of downloading")
     args = parser.parse_args()
@@ -129,8 +122,7 @@ def main() -> int:
         raise SystemExit(f"could not find a version stanza in {CASK}")
     current = match.group(1)
 
-    versions = latest_versions()
-    latest = next(iter(versions.values()))
+    latest = latest_version()
     log(f"cask: {current}    upstream: {latest}")
 
     if latest == current and not args.force:
@@ -148,19 +140,11 @@ def main() -> int:
         log(f"update available: {current} -> {latest}")
         return 0
 
-    log("computing checksums")
-    sums = {
-        key: checksum(FILE_URL.format(arch=token, version=latest),
-                      trust_header=args.trust_header)
-        for key, token in ARCHES.items()
-    }
+    log("computing checksum")
+    sha = checksum(FILE_URL.format(version=latest), trust_header=args.trust_header)
 
     updated = RE_VERSION.sub(f'  version "{latest}"', text, count=1)
-    updated, n = RE_SHA256.subn(
-        f'  sha256 arm:   "{sums["arm"]}",\n'
-        f'         intel: "{sums["intel"]}"',
-        updated, count=1,
-    )
+    updated, n = RE_SHA256.subn(f'  sha256 "{sha}"', updated, count=1)
     if n != 1:
         raise SystemExit(f"could not find the sha256 stanza in {CASK}")
 

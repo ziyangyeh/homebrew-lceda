@@ -1,7 +1,9 @@
 # homebrew-lceda
 
-非官方的 Homebrew tap，用来安装**嘉立创EDA 专业版**（LCEDA Pro / EasyEDA Pro），
-Apple Silicon 和 Intel 都支持。
+非官方的 Homebrew tap，用来安装**嘉立创EDA 专业版**（LCEDA Pro / EasyEDA Pro）。
+
+**只支持 Apple Silicon**（`depends_on arch: :arm64`）。Intel Mac 请直接去
+[官网下载页](https://lceda.cn/page/download) 拿 x64 包。
 
 官网下载页的链接需要登录才能拿到，但 CDN 直链 `https://image.lceda.cn/files/…`
 是公开的，本 tap 用的就是它，下载的就是官网同一个安装包。
@@ -64,12 +66,12 @@ brew uninstall --zap --cask lceda-pro    # 连配置、缓存一起删
 
 | workflow | 触发 | 作用 |
 |---|---|---|
-| [`update-cask.yml`](.github/workflows/update-cask.yml) | 每天 02:20（北京时间）+ 手动 | 抓官网下载页的最新版本号，算出两个架构的 sha256，有更新就直接提交到 `main` |
+| [`update-cask.yml`](.github/workflows/update-cask.yml) | 每天 02:20（北京时间）+ 手动 | 抓官网下载页的最新 arm64 版本号，算出 sha256，有更新就直接提交到 `main` |
 | [`ci.yml`](.github/workflows/ci.yml) | push / PR + 手动 | 在 macOS runner 上跑 `brew style` 和 `brew audit`，手动触发时还能真装一遍 |
 
 手动触发 `Update cask` 时有两个开关：
 
-- **fast**：直接读 CDN 响应头里的 `x-obs-content-sha256`，不用下载那 ~700 MB
+- **fast**：直接读 CDN 响应头里的 `x-obs-content-sha256`，不用下载那 ~350 MB
   （已经验证过该响应头和文件实际 sha256 一致）；
 - **force**：版本没变也重写一遍 version 和 sha256。
 

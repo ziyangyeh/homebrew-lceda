@@ -7,11 +7,11 @@ on:
   workflow_dispatch:
     inputs:
       fast:
-        description: "Read sha256 from the CDN header instead of downloading ~700 MB"
+        description: "Read sha256 from the CDN header instead of downloading ~350 MB"
         type: boolean
         default: false
       force:
-        description: "Rewrite version and checksums even if nothing changed upstream"
+        description: "Rewrite version and checksum even if nothing changed upstream"
         type: boolean
         default: false
 
