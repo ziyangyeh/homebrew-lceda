@@ -76,8 +76,8 @@ jobs:
         if: steps.update.outputs.updated == 'true'
         working-directory: homebrew-lceda
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "Ziyang Ye"
+          git config user.email "yeziyang159@gmail.com"
           git add Casks/lceda-pro.rb
           if git diff --cached --quiet; then
             echo "nothing to commit"
