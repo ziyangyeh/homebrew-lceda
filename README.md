@@ -66,13 +66,24 @@ brew uninstall --zap --cask lceda-pro    # 连配置、缓存一起删
 
 | workflow | 触发 | 作用 |
 |---|---|---|
-| [`update-cask.yml`](.github/workflows/update-cask.yml) | 每天 02:20（北京时间）+ 手动 | 抓官网下载页的最新 arm64 版本号，算出 sha256，有更新就直接提交到 `main` |
+| [`update-cask.yml`](.github/workflows/update-cask.yml) | 每天 02:20（北京时间）+ 手动 | 抓官网下载页的最新 arm64 版本号 → 改 cask → **先验后提交** |
 | [`ci.yml`](.github/workflows/ci.yml) | push / PR + 手动 | 在 macOS runner 上跑 `brew style` 和 `brew audit`，手动触发时还能真装一遍 |
 
-手动触发 `Update cask` 时有两个开关：
+tap 没有「发布」这个动作——`brew` 直接读 `main` 上的 `Casks/lceda-pro.rb`，
+所以改完推上去就等于发布了。`update-cask.yml` 跑的顺序是：
 
-- **fast**：直接读 CDN 响应头里的 `x-obs-content-sha256`，不用下载那 ~350 MB
-  （已经验证过该响应头和文件实际 sha256 一致）；
+```
+抓版本 → 改 version + sha256 → brew style → brew fetch（下包核对 sha256）
+       → brew audit → 全绿才 commit + push
+```
+
+任何一步红了就 job 失败，`main` 一个字都不会动，坏掉的 cask 进不去。
+
+手动触发时有两个开关：
+
+- **full-download**：本地完整下载算 sha256，而不是读 CDN 响应头里的
+  `x-obs-content-sha256`（默认读响应头就够了，反正后面 `brew fetch`
+  会拿真实文件核对一遍；该响应头和文件实际 sha256 一致这点已经验证过）；
 - **force**：版本没变也重写一遍 version 和 sha256。
 
 本地也能跑同一个脚本：
