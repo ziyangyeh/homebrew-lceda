@@ -1,5 +1,15 @@
 # homebrew-lceda
 
+```sh
+brew tap ziyangyeh/lceda
+brew install --cask lceda-pro
+```
+
+| | |
+|---|---|
+| tap 名 | `ziyangyeh/lceda`（GitHub 仓库是 `homebrew-lceda`，`brew` 里省掉前缀） |
+| cask 名 | `lceda-pro` |
+
 非官方的 Homebrew tap，用来安装**嘉立创EDA 专业版**（LCEDA Pro / EasyEDA Pro）。
 
 **只支持 Apple Silicon**（`depends_on arch: :arm64`）。Intel Mac 请直接去
@@ -10,12 +20,7 @@
 
 ## 安装
 
-```sh
-brew tap ziyangyeh/lceda
-brew install --cask lceda-pro
-```
-
-或者一行：
+不想先 tap 的话，一行也行：
 
 ```sh
 brew install --cask ziyangyeh/lceda/lceda-pro
