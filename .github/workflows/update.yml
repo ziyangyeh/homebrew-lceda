@@ -1,0 +1,142 @@
+name: Update
+
+on:
+  schedule:
+    # 02:20 Asia/Shanghai, daily
+    - cron: "20 18 * * *"
+  workflow_dispatch:
+    inputs:
+      full-download:
+        description: "Hash the installers locally instead of trusting the CDN header"
+        type: boolean
+        default: false
+      force:
+        description: "Rewrite version and checksum even if nothing changed upstream"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+  # Scrape and rewrite, but publish nothing: the rewritten files are handed to
+  # the verify jobs as an artifact, and only reach main if both of them pass.
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      updated: ${{ steps.update.outputs.updated }}
+      title: ${{ steps.update.outputs.title }}
+      summary: ${{ steps.update.outputs.summary }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check upstream and refresh the tap
+        id: update
+        run: |
+          args=()
+          if [ "${{ inputs.full-download }}" != "true" ]; then
+            # brew fetch below downloads the installers anyway and verifies
+            # them against the cask and formula, so the header is enough here.
+            args+=(--trust-header)
+          fi
+          if [ "${{ inputs.force }}" = "true" ]; then
+            args+=(--force)
+          fi
+          python3 scripts/update.py "${args[@]}"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.update.outputs.updated == 'true'
+        with:
+          name: refreshed
+          path: |
+            Casks/lceda-pro.rb
+            Formula/lceda-pro.rb
+
+      - name: Summary
+        run: echo "${{ steps.update.outputs.summary }}" >> "$GITHUB_STEP_SUMMARY"
+
+  # The cask can only be audited on macOS and the formula only on Linux, so a
+  # broken update fails the job instead of landing on main and breaking installs.
+  verify:
+    needs: refresh
+    if: needs.refresh.outputs.updated == 'true'
+    name: verify ${{ matrix.kind }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - kind: cask
+            os: macos-latest
+          - kind: formula
+            os: ubuntu-latest
+    env:
+      TAP: ziyangyeh/lceda
+      # No HOMEBREW_NO_INSTALL_FROM_API: this tap is read off disk either way,
+      # and setting it makes the Linux runner clone all of homebrew/core (1.4
+      # GB) and then still fail to find the shellcheck `brew style` wants.
+      HOMEBREW_NO_ANALYTICS: "1"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: homebrew-lceda
+
+      - name: Apply the refreshed files
+        uses: actions/download-artifact@v4
+        with:
+          name: refreshed
+          path: homebrew-lceda
+
+      - name: Put Homebrew on PATH
+        run: |
+          if [ -x /home/linuxbrew/.linuxbrew/bin/brew ]; then
+            echo "/home/linuxbrew/.linuxbrew/bin" >> "$GITHUB_PATH"
+          fi
+
+      - name: Link the checkout in as a tap
+        run: |
+          dest="$(brew --repository)/Library/Taps/ziyangyeh/homebrew-lceda"
+          mkdir -p "$(dirname "$dest")"
+          ln -s "$GITHUB_WORKSPACE/homebrew-lceda" "$dest"
+          brew trust --tap "$TAP"
+
+      - name: brew style
+        run: brew style "$TAP"
+
+      - name: brew fetch
+        # Downloads the installer and verifies it against the sha256 just written.
+        run: brew fetch --${{ matrix.kind }} "$TAP/lceda-pro"
+
+      - name: brew audit
+        run: brew audit --${{ matrix.kind }} --online --strict "$TAP/lceda-pro"
+
+  publish:
+    needs: [refresh, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Apply the verified files
+        uses: actions/download-artifact@v4
+        with:
+          name: refreshed
+
+      - name: Commit and push
+        run: |
+          git config user.name "Ziyang Ye"
+          git config user.email "ian.ziyang.ye@gmail.com"
+          git add Casks/lceda-pro.rb Formula/lceda-pro.rb
+          if git diff --cached --quiet; then
+            echo "nothing to commit"
+            exit 0
+          fi
+          git commit -m "${{ needs.refresh.outputs.title }}" \
+            -m "Automatic update: ${{ needs.refresh.outputs.summary }}."
+          git push

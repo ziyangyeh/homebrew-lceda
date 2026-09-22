@@ -14,7 +14,7 @@ cask "lceda-pro" do
   end
 
   depends_on arch: :arm64
-  depends_on macos: :big_sur
+  depends_on :macos
   container nested: "嘉立创EDA(专业版).dmg"
 
   app "嘉立创EDA(专业版).app"
