@@ -72,7 +72,14 @@ xattr -dr com.apple.quarantine "/Applications/嘉立创EDA(专业版).app"
 ### Linux
 
 Needs x86\_64 and a GTK 3 desktop session. The download is about 346 MB and
-unpacks to roughly 1.1 GB in the Cellar. What lands where:
+unpacks to roughly 1.1 GB in the Cellar.
+
+`brew install lceda-pro` prints `Treating lceda-pro as a formula. For the cask,
+use …` before it gets going. Ignore it — that is the same name-sharing notice
+macOS gets, and here it is already doing the right thing; there is no cask to
+switch to on Linux. `brew install --formula lceda-pro` silences it.
+
+What lands where:
 
 | | |
 |---|---|
