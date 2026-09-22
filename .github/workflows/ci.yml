@@ -36,7 +36,9 @@ jobs:
             os: ubuntu-latest
     env:
       TAP: ziyangyeh/lceda
-      HOMEBREW_NO_INSTALL_FROM_API: "1"
+      # No HOMEBREW_NO_INSTALL_FROM_API: this tap is read off disk either way,
+      # and setting it makes the Linux runner clone all of homebrew/core (1.4
+      # GB) and then still fail to find the shellcheck `brew style` wants.
       HOMEBREW_NO_ANALYTICS: "1"
     steps:
       - uses: actions/checkout@v5
