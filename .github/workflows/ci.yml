@@ -5,22 +5,35 @@ on:
     branches: [main]
     paths:
       - "Casks/**"
+      - "Formula/**"
       - ".github/workflows/ci.yml"
   pull_request:
     paths:
       - "Casks/**"
+      - "Formula/**"
       - ".github/workflows/ci.yml"
   workflow_dispatch:
     inputs:
       install:
-        description: "Also install and uninstall the cask (downloads ~350 MB)"
+        description: "Also install and uninstall for real (downloads ~350 MB per platform)"
         type: boolean
         default: false
 
 jobs:
   audit:
-    runs-on: macos-latest
+    # The cask covers macOS/arm64 and the formula covers Linux/x86_64, so each
+    # one can only be audited on the platform it targets.
+    name: ${{ matrix.kind }}
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - kind: cask
+            os: macos-latest
+          - kind: formula
+            os: ubuntu-latest
     env:
       TAP: ziyangyeh/lceda
       HOMEBREW_NO_INSTALL_FROM_API: "1"
@@ -29,6 +42,13 @@ jobs:
       - uses: actions/checkout@v5
         with:
           path: homebrew-lceda
+
+      - name: Put Homebrew on PATH
+        # The Ubuntu runner ships Homebrew but does not always export it.
+        run: |
+          if [ -x /home/linuxbrew/.linuxbrew/bin/brew ]; then
+            echo "/home/linuxbrew/.linuxbrew/bin" >> "$GITHUB_PATH"
+          fi
 
       - name: Link the checkout in as a tap
         run: |
@@ -42,10 +62,14 @@ jobs:
         run: brew style "$TAP"
 
       - name: brew audit
-        run: brew audit --cask --online --strict "$TAP/lceda-pro"
+        run: brew audit --${{ matrix.kind }} --online --strict "$TAP/lceda-pro"
 
       - name: Install smoke test
         if: inputs.install
         run: |
-          brew install --cask "$TAP/lceda-pro"
-          brew uninstall --cask "$TAP/lceda-pro"
+          brew install --${{ matrix.kind }} "$TAP/lceda-pro"
+          # `brew test` is formula-only; the cask has no equivalent.
+          if [ "${{ matrix.kind }}" = "formula" ]; then
+            brew test "$TAP/lceda-pro"
+          fi
+          brew uninstall --${{ matrix.kind }} "$TAP/lceda-pro"
